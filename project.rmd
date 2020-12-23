@@ -1,0 +1,178 @@
+---
+title: "MAT3375 Project"
+author: 
+  - David D'Souza 
+  - Jason Lam
+date: December 12, 2020
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## About the dataset
+The Wine Quality dataset was chosen from Kaggle. This dataset describes how much citric acid, residual sugar is in each wine as well as its pH, density, achohol level and the quality (based on a scale from 1 to 10). We created a good predicter for the quality of wine using multiple linear regression.
+
+## Assumptions
+There are 5 main assumptions that will be tested throughout the report to ensure our model is adequate. These assumptions are:\newline
+  1. The relationship between the response y and the regressors is linear, at least approximately.\newline
+  2. The error term has zero mean.\newline
+  3. The error term has constant variance.\newline
+  4. The errors are uncorrelated.\newline
+  5. The errors are normally distributed.
+
+## Importing packages
+```{r error=FALSE, message=FALSE, warning=FALSE}
+library(faraway)
+library(MPV)
+```
+
+## Importing data
+
+```{r}
+m <-  read.csv("./Wine_Quality.csv")
+p = 6
+k = 5
+y = m$quality
+n = length(y)
+one_vector = rep(1, 1599)
+```
+
+## Correlation between Regressors and Wine Quality
+
+```{r}
+cor(m$citric.acid,y)
+plot(m$citric.acid,y,xlab="Citric Acid",ylab="Wine Quality")
+
+cor(m$residual.sugar,y)
+plot(m$residual.sugar,y,xlab="Residual Sugar",ylab="Wine Quality")
+
+cor(m$density,y)
+plot(m$density,y,xlab="Density",ylab="Wine Quality")
+
+cor(m$pH,y)
+plot(m$pH,y,xlab="pH",ylab="Wine Quality")
+
+cor(m$alcohol,y)
+plot(m$alcohol,y,xlab="Alcohol",ylab="Wine Quality")
+```
+
+## Creating a Model with all Regressors
+
+```{r}
+model <- lm(y~m$citric.acid+m$residual.sugar+m$density+m$pH+m$alcohol)
+summary(model)
+anova(model)
+
+X = cbind(one_vector, m$citric.acid, m$residual.sugar, m$density, m$pH, m$alcohol)
+XX = t(X) %*% X
+XX_inverse = solve(XX)
+hat_matrix = X %*% XX_inverse %*% t(X)
+beta = XX_inverse %*% t(X) %*% y
+y_hat = X %*% beta
+e = y - y_hat 
+SS_res = t(y) %*% y - t(beta) %*% t(X) %*% y
+```
+
+## Testing if there is Multicollinearity between any Regressors
+None of the regressors have a Variance Inflation Factor over 10, so there does not seem to be any multicolinearity between any regressors.
+
+```{r}
+vif(model)
+```
+
+## Testing for significance of Regression
+Let the null hypothesis be that each coefficient of the regression model is equal to zero.\ 
+The p-value is very small, so we reject the null hypothesis.
+
+```{r}
+SS_r = t(y) %*% (hat_matrix - ((n**(-1)) * one_vector %*% t(one_vector) )) %*% y
+
+F_ob = (SS_r/k) / (SS_res/(n-k-1))
+F_ob
+pf(F_ob, df1 = k, df2 = n-k-1, lower.tail = FALSE)
+```
+
+## Removing Regressors and Testing for the Best Model
+We now remove regressors that have high p-values and thus are not significant in the model.
+
+We start by removing density because it has the highest p-value among the regressors and intercept coefficients.
+```{r}
+model2 <- lm(y~m$citric.acid+m$residual.sugar+m$pH+m$alcohol)
+summary(model2)
+```
+
+We now remove residual sugar because it has the highest p-value among the remaining regressors and intercept coefficients.
+```{r}
+model3 <- lm(y~m$citric.acid+m$pH+m$alcohol)
+summary(model3)
+```
+
+We now use PRESS residuals and Akaike Information Criterion to test the power of how good each model is at prediction a new value.
+Both model2 and model3 seem to be equality good. We will use model3 due to it being simplier than model2 due to it having one less regressors than model2.
+```{r}
+PRESS(model)
+PRESS(model2)
+PRESS(model3)
+
+AIC(model)
+AIC(model2)
+AIC(model3)
+```
+
+## Testing Assumptions
+We will show our model does not violate any assumptions.\
+The response between the response y and the regressors is linear because the Residual vs Fitted plot has no fitted pattern. This also shows the error term has zero mean.
+```{r}
+plot(model3, 1)
+```
+Because the value of the Residual vs Leverage plot is close to zero most of the time, there won't be any extreme values that will affect the regression.
+```{r}
+plot(model3, 4)
+```
+The error term has constant variance because the scale location plot shows the residuals are spread equally along the ranges of predictors.
+```{r}
+plot(model3, 3)
+```
+The errors are normally distributed. This is shown in the Q-Q plot showing that the residuals do not stray far from the normal.
+```{r}
+plot(model3, 2)
+```
+
+The correlation matrix shows that there is no significant correlation between each predictor. 
+```{r}
+pairs(m)
+```
+Therefore, our model does not violate any assumptions.
+
+## Finding a Prediction Interval
+
+We first calculate all the values necessary to find a $100(1-\alpha)$ percent prediction interval for an new vector $x_0$.
+```{r}
+X = cbind(one_vector, m$citric.acid, m$pH, m$alcohol)
+XX = t(X) %*% X
+XX_inverse = solve(XX)
+beta = XX_inverse %*% t(X) %*% y
+SS_res = t(y) %*% y - t(beta) %*% t(X) %*% y
+```
+
+Therefore, a $100(1-\alpha)$ percent prediction interval for an new vector $x_0$ is:\
+$\hat{y}_0 - t_{\alpha/2,1595}\sqrt{\hat\sigma^2(1+x^\prime_0(X^\prime X)^{-1}x_0)} \leq y_0 \leq \hat{y}_0 + t_{\alpha/2,1595}\sqrt{\hat\sigma^2(1+x^\prime_0(X^\prime X)^{-1}x_0)}$\
+With the following parameters:
+
+$\hat\beta$:
+```{r}
+beta
+```
+
+$\hat{y}_0 = x^\prime_0 \hat\beta$
+
+$\hat\sigma^2$:
+```{r}
+SS_res
+```
+
+$(X^\prime X)^{-1}$:
+```{r}
+XX_inverse
+```
